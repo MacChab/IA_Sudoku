@@ -10,7 +10,7 @@
 ##   u is a unit,   e.g. ['A1','B1','C1','D1','E1','F1','G1','H1','I1']
 ##   grid is a grid,e.g. 81 non-blank chars, e.g. starting with '.18...7...
 ##   values is a dict of possible values, e.g. {'A1':'12349', 'A2':'8', ...}
-
+import random
 def cross(A, B):
     "Cross product of elements in A and elements in B."
     return [a+b for a in A for b in B]
@@ -117,10 +117,28 @@ def search(values):
         return False ## Failed earlier
     if all(len(values[s]) == 1 for s in squares):
         return values ## Solved!
+
+    #jai pas trouve de moyen de prendre un elem random dun generator,
+    # faque jai juste cree une liste et pris un elem random
+
+    n, s = random.choice([(len(values[s]), s) for s in squares if len(values[s]) > 1])
+
+    val = "123456789"
+    val = list(val)
+    random.shuffle(val)
+    val = ''.join(val)
+
+    return some(search(assign(values.copy(), s, d))
+                for d in val)
+    """
     ## Chose the unfilled square s with the fewest possibilities
+
+    #CODE ORIGINAL
     n,s = min((len(values[s]), s) for s in squares if len(values[s]) > 1)
     return some(search(assign(values.copy(), s, d))
                 for d in values[s])
+    """
+
 
 ################ Utilities ################
 
@@ -156,12 +174,12 @@ def solve_all(grids, name='', showif=0.0):
         if showif is not None and t > showif:
             display(grid_values(grid))
             if values: display(values)
-            print ('(%.2f seconds)\n' % t)
+            print ('(%.5f seconds)\n' % t)
         return (t, solved(values))
     times, results = zip(*[time_solve(grid) for grid in grids])
     N = len(grids)
     if N > 1:
-        print ("Solved %d of %d %s puzzles (avg %.2f secs (%d Hz), max %.2f secs)." % (
+        print ("Solved %d of %d %s puzzles (avg %.5f secs (%d Hz), max %.5f secs)." % (
             sum(results), N, name, sum(times)/N, N/sum(times), max(times)))
 
 def solved(values):
@@ -189,9 +207,10 @@ hard1  = '.....6....59.....82....8....45........3........6..3.54...325..6.......
 if __name__ == '__main__':
     test()
     solve_all(from_file("100sudoku.txt"), "100sudoku", None)
+    solve_all(from_file("1000sudoku.txt"), "1000sudoku", None)
     # solve_all(from_file("easy50.txt", '========'), "easy", None)
     # solve_all(from_file("easy50.txt", '========'), "easy", None)
-    # solve_all(from_file("top95.txt"), "hard", None)
+    solve_all(from_file("top95.txt"), "hard", None)
     # solve_all(from_file("hardest.txt"), "hardest", None)
     # solve_all([random_puzzle() for _ in range(99)], "random", 100.0)
 
