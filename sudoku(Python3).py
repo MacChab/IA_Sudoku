@@ -110,7 +110,7 @@ def display(values):
 ################ Search ################
 
 def solve(grid): return search(parse_grid(grid))
-
+def solve_heuristic(grid): return search_heuristic(parse_grid(grid))
 def search(values):
     "Using depth-first search and propagation, try all possible values."
     if values is False:
@@ -120,7 +120,7 @@ def search(values):
 
     #jai pas trouve de moyen de prendre un elem random dun generator,
     # faque jai juste cree une liste et pris un elem random
-
+    """
     n, s = random.choice([(len(values[s]), s) for s in squares if len(values[s]) > 1])
 
     val = "123456789"
@@ -137,9 +137,31 @@ def search(values):
     n,s = min((len(values[s]), s) for s in squares if len(values[s]) > 1)
     return some(search(assign(values.copy(), s, d))
                 for d in values[s])
-    """
+
+def search_heuristic(values):
+    #No3 utilise le principe des hiddens singles pour assigner des valeurs a certaines cases, avant
+    #de continuer le depth first search comme dans dans le code original
+    if values is False:
+        return False  ## Failed earlier
+    if all(len(values[s]) == 1 for s in squares):
+        return values  ## Solved!
+
+    #assign les hiddens singles. regarde pour chaque unit si il n'y aurait pas un ou plusieurs hidden single
+
+    for unit in unitlist:
+        digits_uniq = dict((s,"") for s in digits)
+        for case in unit:
+            if len(values[case]) > 1:
+                for d in values[case]:
+                    digits_uniq[d] += case
+        for key,value in digits_uniq.items():
+            if len(value) == 2:
+                assign(values,value,key)
 
 
+    n,s = min((len(values[s]), s) for s in squares if len(values[s]) > 1)
+    return some(search(assign(values.copy(), s, d))
+                for d in values[s])
 ################ Utilities ################
 
 def some(seq):
@@ -182,6 +204,26 @@ def solve_all(grids, name='', showif=0.0):
         print ("Solved %d of %d %s puzzles (avg %.5f secs (%d Hz), max %.5f secs)." % (
             sum(results), N, name, sum(times)/N, N/sum(times), max(times)))
 
+def solve_all_heuristic(grids, name='', showif=0.0):
+    """Attempt to solve a sequence of grids. Report results.
+    When showif is a number of seconds, display puzzles that take longer.
+    When showif is None, don't display any puzzles."""
+    def time_solve(grid):
+        start = time.time()
+        values = solve_heuristic(grid)
+        t = time.time()-start
+        ## Display puzzles that take long enough
+        if showif is not None and t > showif:
+            display(grid_values(grid))
+            if values: display(values)
+            print ('(%.5f seconds)\n' % t)
+        return (t, solved(values))
+    times, results = zip(*[time_solve(grid) for grid in grids])
+    N = len(grids)
+    if N > 1:
+        print ("Solved %d of %d %s puzzles (avg %.5f secs (%d Hz), max %.5f secs)." % (
+            sum(results), N, name, sum(times)/N, N/sum(times), max(times)))
+
 def solved(values):
     "A puzzle is solved if each unit is a permutation of the digits 1 to 9."
     def unitsolved(unit): return set(values[s] for s in unit) == set(digits)
@@ -208,6 +250,8 @@ if __name__ == '__main__':
     test()
     solve_all(from_file("100sudoku.txt"), "100sudoku", None)
     solve_all(from_file("1000sudoku.txt"), "1000sudoku", None)
+    solve_all_heuristic(from_file("100sudoku.txt"), "100sudoku", None)
+    solve_all_heuristic(from_file("top95.txt"), "hard", None)
     # solve_all(from_file("easy50.txt", '========'), "easy", None)
     # solve_all(from_file("easy50.txt", '========'), "easy", None)
     solve_all(from_file("top95.txt"), "hard", None)
