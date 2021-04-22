@@ -1,5 +1,6 @@
 ## Solve Every Sudoku Puzzle
-
+import random
+from time import time
 ## See http://norvig.com/sudoku.html
 
 ## Throughout this program we have:
@@ -41,7 +42,7 @@ def test():
     assert peers['C2'] == set(['A2', 'B2', 'D2', 'E2', 'F2', 'G2', 'H2', 'I2',
                                'C1', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9',
                                'A1', 'A3', 'B1', 'B3'])
-    print 'All tests pass.'
+    print ('All tests pass.')
 
 ################ Parse a Grid ################
 
@@ -54,6 +55,31 @@ def parse_grid(grid):
         if d in digits and not assign(values, s, d):
             return False ## (Fail if we can't assign d to square s.)
     return values
+
+
+""" retourne les valeurs d'un sudoku rempli dont les valeurs respectent les carres (mais pas les lignes ou colonnes)
+ainsi qu'une liste des cases qui ne sont pas fixe"""
+def parse_random_values(values):
+
+    boxes = unitlist[18:27]
+    empty_cases_by_box = []
+
+    for box in boxes:
+        dig = digits
+        case_vide = []
+        for case in box:
+            if len(values[case]) > 1:
+                case_vide.append(case)
+            else:
+                dig = dig.replace(values[case], '')
+        dig = [char for char in dig]
+        random.shuffle(dig)
+
+        dig = "".join(dig)
+        for i in range(len(case_vide)):
+            values[case_vide[i]] = dig[i]
+        empty_cases_by_box.append(case_vide)
+    return (values, empty_cases_by_box)
 
 def grid_values(grid):
     "Convert grid into a dict of {square: char} with '0' or '.' for empties."
@@ -103,25 +129,74 @@ def display(values):
     width = 1+max(len(values[s]) for s in squares)
     line = '+'.join(['-'*(width*3)]*3)
     for r in rows:
-        print ''.join(values[r+c].center(width)+('|' if c in '36' else '')
-                      for c in cols)
-        if r in 'CF': print line
-    print
-
+        print(''.join(values[r+c].center(width)+('|' if c in '36' else '')
+                      for c in cols))
+        if r in 'CF': print(line)
+    print()
 ################ Search ################
 
-def solve(grid): return search(parse_grid(grid))
+def solve(grid):
+
+    values= parse_grid(grid)
+
+    return search(values)
 
 def search(values):
-    "Using depth-first search and propagation, try all possible values."
-    if values is False:
-        return False ## Failed earlier
-    if all(len(values[s]) == 1 for s in squares):
-        return values ## Solved!
-    ## Chose the unfilled square s with the fewest possibilities
-    n,s = min((len(values[s]), s) for s in squares if len(values[s]) > 1)
-    return some(search(assign(values.copy(), s, d))
-                for d in values[s])
+    """hill climbing"""
+
+    #on initialise d'abord le tableau en remplissant toutes les cases vide en respectant les 9 carres random
+    #on a une liste de liste qui contient toutes les cases unfix par carre
+    values, unfix_by_box = parse_random_values(values)
+    unfix_by_box = shuffled(unfix_by_box)
+    curr_error = solved_hill(values)
+    better_solution = False
+    swap1 = ''
+    swap2 = ''
+    try_no = 1
+
+    while True:
+
+        # print("try : ", try_no)
+        # print(curr_error)
+        better_solution = False
+
+
+        for box in unfix_by_box:
+            box = shuffled(box)
+            for first in range(len(box)-1):
+                second = first
+                while second < len(box)-1:
+
+                    copy_values = values.copy()
+                    second += 1
+                    s = copy_values[box[first]]
+                    copy_values[box[first]] = copy_values[box[second]]
+                    copy_values[box[second]] = s
+                    new_error = solved_hill(copy_values)
+
+                    if new_error == 0:
+                        print("solution trouve")
+                        display(values)
+                        return copy_values
+                    elif new_error < curr_error:
+                        better_solution = True
+                        swap1 = box[first]
+                        swap2 = box[second]
+                        curr_error = new_error
+
+        if better_solution == False:
+            break
+        else:
+            try_no += 1
+            sw = values[swap1]
+            values[swap1] = values[swap2]
+            values[swap2] = sw
+
+
+    return values
+
+
+
 
 ################ Utilities ################
 
@@ -133,7 +208,7 @@ def some(seq):
 
 def from_file(filename, sep='\n'):
     "Parse a file into a list of strings, separated by sep."
-    return file(filename).read().strip().split(sep)
+    return open(filename).read().strip().split(sep)
 
 def shuffled(seq):
     "Return a randomly shuffled copy of the input sequence."
@@ -143,27 +218,44 @@ def shuffled(seq):
 
 ################ System test ################
 
-import time, random
 
 def solve_all(grids, name='', showif=0.0):
     """Attempt to solve a sequence of grids. Report results.
     When showif is a number of seconds, display puzzles that take longer.
     When showif is None, don't display any puzzles."""
     def time_solve(grid):
-        start = time.clock()
+        start = time()
         values = solve(grid)
-        t = time.clock()-start
+        t = time()-start
         ## Display puzzles that take long enough
         if showif is not None and t > showif:
             display(grid_values(grid))
             if values: display(values)
-            print '(%.2f seconds)\n' % t
+            print ('(%.2f seconds)\n' % t)
         return (t, solved(values))
     times, results = zip(*[time_solve(grid) for grid in grids])
     N = len(grids)
     if N > 1:
-        print "Solved %d of %d %s puzzles (avg %.2f secs (%d Hz), max %.2f secs)." % (
-            sum(results), N, name, sum(times)/N, N/sum(times), max(times))
+        print ("Solved %d of %d %s puzzles (avg %.2f secs (%d Hz), max %.2f secs)." % (
+            sum(results), N, name, sum(times)/N, N/sum(times), max(times)))
+
+def solved_hill(values):
+    """return le nombre d'erreur restante dans la grille, 0 si fini
+    nombre d'erreur  = addition des chiffres manquant dans chaque ligne et chaque colonne"""
+
+    nb_erreurs = 0
+
+    rows_cols = unitlist[0:18]
+    test_values = values
+
+    for unit in rows_cols:
+        d = digits
+        for i in unit:
+            d = d.replace(values[i], '')
+        nb_erreurs += len(d)
+
+
+    return nb_erreurs
 
 def solved(values):
     "A puzzle is solved if each unit is a permutation of the digits 1 to 9."
@@ -189,10 +281,13 @@ hard1  = '.....6....59.....82....8....45........3........6..3.54...325..6.......
     
 if __name__ == '__main__':
     test()
-    solve_all(from_file("easy50.txt", '========'), "easy", None)
-    solve_all(from_file("top95.txt"), "hard", None)
-    solve_all(from_file("hardest.txt"), "hardest", None)
-    solve_all([random_puzzle() for _ in range(99)], "random", 100.0)
+    # solve_all(from_file("top95.txt"), "95sudoku", None)
+    solve_all(from_file("100sudoku.txt"), " 100 sudoku" , None)
+    # solve_all(from_file("1000sudoku.txt"), "1000", None)
+    solve_all([hard1, hard1],"hard",  None)
+    # solve_all(from_file("easy50.txt", '========'), "easy", None)
+    # solve_all(from_file("hardest.txt"), "hardest", None)
+    # solve_all([random_puzzle() for _ in range(99)], "random", 100.0)
 
 ## References used:
 ## http://www.scanraid.com/BasicStrategies.htm
